@@ -12,25 +12,24 @@ if __name__ == "__main__":
     parser = OptionParser(description='Securely wrap terraform like a terrarist!')
     parser.add_option('-a', '--action', choices=['plan', 'apply', 'import'], help='Terraform action to execute', default='plan')
     parser.add_option('-v', '--vault', '--ansible-vault', dest='vault_file', help='Ansible Vault File',
-                        default='terraform.vault')
-    parser.add_option('-p', '--vault-password-file', dest='vault_password', help='Ansible Vault Password File',
-                        default='vault.password')
-    parser.add_option('-e', '--environment', dest='environment', help='Production, Staging, etc...', default='staging')
-
+                        default='secrets.vault')
     args, options = parser.parse_args()
 
-    if not os.path.isfile(args.vault_file):
-        sys.stderr.write("Ansible vault file does not exist.\n")
+    vaultfile = os.environ.get("VAULTFILE", None)
+    if vaultfile is None:
+        vaultfile = args.vault_file
+    if not os.path.isfile(vaultfile):
+        sys.stderr.write("No ansible vault found in %s. Either create one or set the environment variable VAULTFILE.\n" % vaultfile)
         sys.exit(3)
 
-    if not os.path.isfile(args.vault_password):
-        sys.stderr.write("Ansible vault password does not exist.\n")
+    vaultpass = os.environ.get("VAULTPASS", None)
+    if vaultpass is None:
+        sys.stderr.write("Set the VAULTPASS environment variable to unlock the ansible vault.\n")
         sys.exit(3)
-
-    password = open(args.vault_password).read().strip()
+    password = open(vaultpass).read().strip()
 
     vault = Vault(password)
-    data = vault.load(open(args.vault_file).read())
+    data = vault.load(open(vaultfile).read())
 
     cmd = ["terraform", args.action, "--var", "environment=%s" %args.environment ]
 
