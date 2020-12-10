@@ -2,10 +2,12 @@
 
 # a COMPLETE passthrough to vagrant that makes use of an ansible vault
 
-from ansible_vault import Vault
 import os
 import sys
 import subprocess
+from ansible.constants import DEFAULT_VAULT_ID_MATCH
+from ansible.parsing.vault import AnsibleVaultError, VaultLib, VaultSecret
+
 
 vaultpass = os.environ.get("VAULTPASS" , None)
 if vaultpass is None:
@@ -20,8 +22,13 @@ if not os.path.isfile(vaultfile):
     sys.stderr.write("No ansible vault found in %s. Either create one or set the environment variable VAULTFILE.\n" % vaultfile)
     sys.exit(3)
 
-vault = Vault(vaultpass)
-data = vault.load(open(vaultfile).read())
+vault = VaultLib([(DEFAULT_VAULT_ID_MATCH, VaultSecret(vaultpass.encode('utf-8')))])
+try:
+    content = vault.decrypt(open(vaultfile).read())
+except AnsibleVaultError:
+    sys.stderr.write("Invalid vault password, could not decrypt vault.\n")
+    sys.exit(3)
+data = yaml.load(content, Loader=yaml.CLoader)
 
 # create an environment for vagrant, injecting our vault content
 venv = os.environ.copy()

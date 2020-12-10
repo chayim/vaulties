@@ -5,7 +5,10 @@ import os
 import subprocess
 import string
 import sys
-from ansible_vault import Vault
+import yaml
+from ansible.constants import DEFAULT_VAULT_ID_MATCH
+from ansible.parsing.vault import AnsibleVaultError, VaultLib, VaultSecret
+
 
 if __name__ == "__main__":
 
@@ -13,6 +16,8 @@ if __name__ == "__main__":
     parser.add_option('-a', '--action', choices=['plan', 'apply', 'import'], help='Terraform action to execute', default='plan')
     parser.add_option('-v', '--vault', '--ansible-vault', dest='vault_file', help='Ansible Vault File',
                         default='secrets.vault')
+    parser.add_option('-x', '--debug', dest='DEBUG', action='store_true', help='Set, to print the command output, and not run.')
+
     args, options = parser.parse_args()
 
     vaultfile = os.environ.get("VAULTFILE", None)
@@ -26,16 +31,26 @@ if __name__ == "__main__":
     if vaultpass is None:
         sys.stderr.write("Set the VAULTPASS environment variable to unlock the ansible vault.\n")
         sys.exit(3)
-    password = open(vaultpass).read().strip()
 
-    vault = Vault(password)
-    data = vault.load(open(vaultfile).read())
+    vault = VaultLib([(DEFAULT_VAULT_ID_MATCH, VaultSecret(vaultpass.encode('utf-8')))])
+    try:
+        content = vault.decrypt(open(vaultfile).read())
+    except AnsibleVaultError:
+        sys.stderr.write("Invalid vault password, could not decrypt vault.\n")
+        sys.exit(3)
+    data = yaml.load(content, Loader=yaml.CLoader)
 
-    cmd = ["terraform", args.action, "--var", "environment=%s" %args.environment ]
+    cmd = ["terraform", args.action]
 
     for key, value in data.items():
         cmd.append("--var '{}={}'".format(key, value))
 
-    cmd += string.join(options)
-    x = os.system(string.join(cmd))
+    cmd += options
+
+    runcmd = ' '.join(cmd)
+    if args.DEBUG:
+        print(runcmd)
+        sys.exit(0)
+
+    x = os.system(runcmd)
     sys.exit(x)
