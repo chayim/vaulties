@@ -3,6 +3,7 @@
 # a COMPLETE passthrough to vagrant that makes use of an ansible vault
 
 import os
+import yaml
 import sys
 import subprocess
 from ansible.constants import DEFAULT_VAULT_ID_MATCH
